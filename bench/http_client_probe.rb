@@ -15,11 +15,11 @@ options = {
 
 OptionParser.new do |parser|
   parser.banner = "Usage: ruby bench/http_client_probe.rb [options]"
-  parser.on("--duration SECONDS", Float) { |value| options[:duration] = value }
-  parser.on("--concurrency COUNT", Integer) { |value| options[:concurrency] = value }
+  parser.on("--duration SECONDS", Float) { |value| options[:duration] = Float(value) }
+  parser.on("--concurrency COUNT", Integer) { |value| options[:concurrency] = Integer(value) }
   parser.on("--path PATH", String) { |value| options[:path] = value }
-  parser.on("--body-bytes COUNT", Integer) { |value| options[:body_bytes] = value }
-  parser.on("--server-threads COUNT", Integer) { |value| options[:server_threads] = value }
+  parser.on("--body-bytes COUNT", Integer) { |value| options[:body_bytes] = Integer(value) }
+  parser.on("--server-threads COUNT", Integer) { |value| options[:server_threads] = Integer(value) }
   parser.on("-h", "--help") { puts parser; exit }
 end.parse!
 
@@ -43,18 +43,10 @@ port = server.addr[1]
 running = true
 workers = Array.new(options[:server_threads]) do
   Thread.new do
-    Thread.current.report_on_exception = false
     while running
       begin
-        socket = server.accept_nonblock
-      rescue IO::WaitReadable
-        begin
-          IO.select([ server ], nil, nil, 0.05)
-        rescue Errno::EBADF, IOError
-          break
-        end
-        next
-      rescue Errno::EBADF, IOError
+        socket = server.accept
+      rescue IOError, SystemCallError
         break
       end
 
@@ -72,8 +64,9 @@ workers = Array.new(options[:server_threads]) do
     end
   end
 end
+sleep 0.01
 
-client = BenchmarkHTTPClient.new("http://127.0.0.1:#{port}")
+client = BenchmarkSocketHTTPClient.new("http://127.0.0.1:#{port}")
 started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 result = client.measure(options[:path], "", concurrency: options[:concurrency], duration: options[:duration])
 elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started

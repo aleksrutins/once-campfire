@@ -27,6 +27,7 @@ HTTP 200 without transport errors. Measurements exclude Thruster, TLS and gzip. 
 CPU, JIT warmup and GC can affect throughput; repeat runs and check client saturation.
 
 `compare_http_client_aot.rb` benchmarks the HTTP client loop as Ruby source and as a Spinel
-native binary. It compiles `bench/http_client_probe.rb` with `spinel`, alternates run order
-per round, and writes per-round JSON plus a summary with median RPS, p95 latency, and speedup.
+native binary. It compiles `bench/http_client_probe.rb` with `spinel`, uses raw TCP sockets
+to avoid unsupported `Net::HTTP` methods in Spinel, alternates run order per round, and writes
+per-round JSON plus a summary with median RPS, p95 latency, and speedup.
 Use `--spinel PATH` if `spinel` is not on `PATH`.

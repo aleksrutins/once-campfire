@@ -1,5 +1,6 @@
 require "cgi"
 require "net/http"
+require "socket"
 
 class BenchmarkHTTPClient
   def initialize(base)
@@ -90,6 +91,65 @@ class BenchmarkHTTPClient
 
     def cookie_header(cookies)
       cookies.map { |name, value| "#{name}=#{value}" }.join("; ")
+    end
+
+    def percentile(values, fraction)
+      values[(values.size * fraction).ceil - 1]
+    end
+
+    def clock
+      Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    end
+end
+
+class BenchmarkSocketHTTPClient
+  def initialize(base)
+    @base = URI(base)
+  end
+
+  def measure(path, cookie, concurrency:, duration:)
+    start = clock
+    deadline = start + duration
+    workers = Array.new(concurrency) do
+      Thread.new do
+        result = { latencies: [], statuses: Hash.new(0), bytes: 0, errors: 0 }
+        while clock < deadline
+          begin
+            requested = clock
+            response = request(path, cookie)
+            result[:latencies] << (clock - requested) * 1000
+            result[:statuses][response[:code]] += 1
+            result[:bytes] += response[:body].bytesize
+          rescue IOError, SystemCallError, Timeout::Error, SocketError
+            result[:errors] += 1
+            sleep 0.01
+          end
+        end
+        result
+      end
+    end
+    samples = workers.map(&:value)
+    elapsed = clock - start
+    latencies = samples.flat_map { |sample| sample[:latencies] }.sort
+    statuses = Hash.new(0)
+    samples.each { |sample| sample[:statuses].each { |status, count| statuses[status] += count } }
+    errors = samples.sum { |sample| sample[:errors] }
+    raise "#{path}: HTTP statuses #{statuses}, #{errors} transport errors" unless errors.zero? && statuses.keys == [ "200" ]
+    { path: path, conc: concurrency, gzip: false, secs: elapsed, rps: latencies.size / elapsed,
+      ok: latencies.size, statuses: statuses, errors: errors,
+      avg_bytes: samples.sum { |sample| sample[:bytes] } / latencies.size,
+      latency_ms: { p50: percentile(latencies, 0.50), p95: percentile(latencies, 0.95), p99: percentile(latencies, 0.99) } }
+  end
+
+  private
+    def request(path, cookie)
+      socket = TCPSocket.new(@base.host, @base.port)
+      socket.write("GET #{path} HTTP/1.1\r\nHost: #{@base.host}\r\nConnection: close\r\nCookie: #{cookie}\r\n\r\n")
+      response = socket.read
+      head, body = response.split("\r\n\r\n", 2)
+      { code: head.split(" ", 3)[1], body: body.to_s }
+    ensure
+      socket&.close
     end
 
     def percentile(values, fraction)
