@@ -7,10 +7,11 @@ module BenchmarkSupport
   ROOT = File.expand_path("..", __dir__)
   WORK = File.join(ROOT, "tmp/rails-optimization")
 
-  def parse_options(description, defaults)
+  def parse_options(description, defaults, require_seed: true)
     options = { baseline: nil, seed: nil, image: "campfire-reference:app", cpus: "8-11", rounds: 2 }.merge(defaults)
     parser = OptionParser.new do |parser|
-      parser.banner = "Usage: ruby #{$PROGRAM_NAME} --baseline PATH --seed PATH [options]\n#{description}"
+      required = require_seed ? " --baseline PATH --seed PATH" : ""
+      parser.banner = "Usage: ruby #{$PROGRAM_NAME}#{required} [options]\n#{description}"
       options.each do |name, default|
         type = case default
         when Integer then Integer
@@ -23,9 +24,9 @@ module BenchmarkSupport
     end
     parser.parse!
     raise OptionParser::InvalidArgument, "unexpected arguments: #{ARGV.join(' ')}" unless ARGV.empty?
-    raise OptionParser::MissingArgument, "--baseline and --seed are required" unless options[:baseline] && options[:seed]
+    raise OptionParser::MissingArgument, "--baseline and --seed are required" if require_seed && (!options[:baseline] || !options[:seed])
     raise OptionParser::InvalidArgument, "--rounds must be even and at least 2" unless options[:rounds] >= 2 && options[:rounds].even?
-    %i[baseline seed output].each { |name| options[name] = File.expand_path(options.fetch(name)) }
+    %i[baseline seed output].each { |name| options[name] = File.expand_path(options.fetch(name)) if options[name] }
     options
   rescue OptionParser::ParseError => error
     abort "#{error.message}\n#{parser}"

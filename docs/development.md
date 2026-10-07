@@ -8,7 +8,7 @@ First, get everything installed and configured with:
 bin/setup
 ```
 
-This installs the system packages Campfire needs (SQLite, ffmpeg), the right Ruby version (via [mise](https://mise.jdx.dev)), and the app's gems; prepares the database; and starts Redis (in a Docker container called `campfire-redis`, if it isn't already running locally).
+This installs the system packages Campfire needs (SQLite, ffmpeg, and the Spinel build tools), the right Ruby version (via [mise](https://mise.jdx.dev)), Spinel, and the app's gems; prepares the database; and starts Redis (in a Docker container called `campfire-redis`, if it isn't already running locally).
 
 If you want to start over at any point, run:
 

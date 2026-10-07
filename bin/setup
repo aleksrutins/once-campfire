@@ -7,6 +7,7 @@ app_root="$(
   pwd
 )"
 export PATH="$app_root/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
 
 REDIS_PORT=6379
 REDIS_HOST=localhost
@@ -65,7 +66,7 @@ elif command -v pacman &>/dev/null; then
     step "Installing packages" sudo pacman -S --noconfirm --needed "${packages[@]}"
   fi
 elif command -v apt &>/dev/null; then
-  step "Installing packages" sudo apt-get install --no-install-recommends -y libsqlite3-0 ffmpeg
+  step "Installing packages" sudo apt-get install --no-install-recommends -y build-essential libsqlite3-0 ffmpeg
 fi
 
 if ! command -v mise &>/dev/null; then
@@ -80,6 +81,16 @@ eval "$(mise hook-env)"
 
 bundle config set --local auto_install true
 step "Installing RubyGems" bundle install
+
+if ! command -v spinel &>/dev/null; then
+  spinel_source="$HOME/.local/src/spinel"
+  mkdir -p "$HOME/.local/bin" "$HOME/.local/src"
+  if [[ ! -d "$spinel_source" ]]; then
+    step "Downloading Spinel" git clone --depth 1 https://github.com/matz/spinel.git "$spinel_source"
+  fi
+  step "Building Spinel" make -C "$spinel_source" deps all
+  ln -sf "$spinel_source/spinel" "$HOME/.local/bin/spinel"
+fi
 
 # Prepare database
 if [[ $* == *--reset* ]]; then
