@@ -43,11 +43,16 @@ port = server.addr[1]
 running = true
 workers = Array.new(options[:server_threads]) do
   Thread.new do
+    Thread.current.report_on_exception = false
     while running
       begin
         socket = server.accept_nonblock
       rescue IO::WaitReadable
-        IO.select([ server ], nil, nil, 0.05)
+        begin
+          IO.select([ server ], nil, nil, 0.05)
+        rescue Errno::EBADF, IOError
+          break
+        end
         next
       rescue Errno::EBADF, IOError
         break
@@ -75,7 +80,7 @@ elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
 
 running = false
 server.close
-workers.each(&:join)
+workers.each(&:value)
 
 output = {
   engine: defined?(RUBY_ENGINE) ? RUBY_ENGINE : "unknown",
