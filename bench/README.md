@@ -8,7 +8,7 @@ and `labels.json`, and a matching application image with compiled assets.
 ruby bench/compare_message_hot_paths.rb --baseline PATH --baseline-ref SHA --seed SEED
 ruby bench/compare_http.rb --baseline PATH --seed SEED
 ruby bench/compare_http.rb --baseline PATH --seed SEED --paths sidebar,search --concurrencies 16 --duration 10
-ruby bench/compare_http_client_aot.rb --duration 2 --concurrencies 1,16 --rounds 6
+ruby bench/compare_http_client_aot.rb --seed PATH --duration 2 --concurrencies 1,16 --rounds 6
 ```
 
 Both drivers alternate before/after order and reset fixture storage for each run.
@@ -26,8 +26,9 @@ whole body. Login uses normal CSRF protection; all warmup and measured responses
 HTTP 200 without transport errors. Measurements exclude Thruster, TLS and gzip. Client
 CPU, JIT warmup and GC can affect throughput; repeat runs and check client saturation.
 
-`compare_http_client_aot.rb` benchmarks the HTTP client loop as Ruby source and as a Spinel
-native binary. It compiles `bench/http_client_probe.rb` with `spinel`, uses raw TCP sockets
-to avoid unsupported `Net::HTTP` methods in Spinel, alternates run order per round, and writes
-per-round JSON plus a summary with median RPS, p95 latency, and speedup.
+`compare_http_client_aot.rb` benchmarks the room page, messages page, sidebar, search, and
+post-message workflows as Ruby source and a Spinel native binary. It uses the same seeded
+production app setup as `compare_http.rb`, compiles `bench/http_client_probe.rb` with `spinel`,
+uses raw TCP sockets to avoid unsupported `Net::HTTP` methods in Spinel, alternates run order per
+round, and writes per-round JSON plus a summary with median RPS, p95 latency, and speedup.
 Use `--spinel PATH` if `spinel` is not on `PATH`.
