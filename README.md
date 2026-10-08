@@ -1,5 +1,21 @@
 # Campfire
 
+This is a fork of Campfire with Spinel benchmarks. Results in a GitHub codespace, so not a great test environment, but (`CRuby -> Spinel`):
+
+```
+$ ruby bench/compare_http_client_aot.rb --seed /tmp/campfire-seed --duration 0.05 --concurrencies 1 --rounds 2 --output /tmp/campfire-real-aot
+Skipping client CPU pinning; 12-15 is unavailable
+1/2: ruby
+1/2: native
+2/2: native
+2/2: ruby
+room_1: 2 -> 2 rps (0.94x), p95 441.65 -> 475.53 ms
+messages_1: 6 -> 7 rps (1.10x), p95 156.29 -> 141.84 ms
+sidebar_1: 9 -> 11 rps (1.16x), p95 108.71 -> 92.99 ms
+search_1: 10 -> 9 rps (0.91x), p95 98.44 -> 107.24 ms
+post_message_1: 2 -> 3 rps (1.05x), p95 412.37 -> 390.91 ms
+```
+
 Campfire is a web-based chat application. It supports many of the features you'd
 expect, including:
 
