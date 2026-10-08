@@ -107,19 +107,31 @@ class BenchmarkSocketHTTPClient
     @base = URI(base)
   end
 
-  def measure(path, cookie, concurrency:, duration:)
+  def login(email, password)
+    response = request("GET", "/session/new")
+    token = response[:body][/<meta name="csrf-token" content="([^"]*)"/, 1]
+    raise "sign-in page has no CSRF token" unless token
+    cookie = response[:cookies].join("; ")
+    form = URI.encode_www_form(email_address: email, password: password, authenticity_token: CGI.unescapeHTML(token))
+    response = request("POST", "/session", cookie, form, "application/x-www-form-urlencoded")
+    raise "login failed: HTTP #{response[:status]}" unless response[:status] == "302"
+    ([ cookie ] + response[:cookies]).reject(&:empty?).join("; ")
+  end
+
+  def measure(path, cookie, concurrency:, duration:, method: "GET", body: nil, success_codes: [ "200" ], accept: nil)
     start = clock
     deadline = start + duration
     workers = Array.new(concurrency) do
       Thread.new do
-        result = { latencies: [], statuses: Hash.new(0), bytes: 0, errors: 0 }
+        result = { latencies: [], statuses: Hash.new(0), bytes: 0, errors: 0, failures: [] }
         while clock < deadline
           begin
             requested = clock
-            response = request(path, cookie)
+            response = request(method, path, cookie, body, nil, accept)
             result[:latencies] << (clock - requested) * 1000
-            result[:statuses][response[:code]] += 1
+            result[:statuses][response[:status]] += 1
             result[:bytes] += response[:body].bytesize
+            result[:failures] << "#{response[:status]}: #{response[:body][0, 200]}" unless success_codes.include?(response[:status])
           rescue IOError, SystemCallError, Timeout::Error, SocketError
             result[:errors] += 1
             sleep 0.01
@@ -134,7 +146,8 @@ class BenchmarkSocketHTTPClient
     statuses = Hash.new(0)
     samples.each { |sample| sample[:statuses].each { |status, count| statuses[status] += count } }
     errors = samples.sum { |sample| sample[:errors] }
-    raise "#{path}: HTTP statuses #{statuses}, #{errors} transport errors" unless errors.zero? && statuses.keys == [ "200" ]
+    failures = samples.flat_map { |sample| sample[:failures] }.uniq
+    raise "#{path}: HTTP statuses #{statuses}, #{errors} transport errors#{": #{failures.join('; ')}" unless failures.empty?}" unless errors.zero? && (statuses.keys - success_codes).empty?
     { path: path, conc: concurrency, gzip: false, secs: elapsed, rps: latencies.size / elapsed,
       ok: latencies.size, statuses: statuses, errors: errors,
       avg_bytes: samples.sum { |sample| sample[:bytes] } / latencies.size,
@@ -142,12 +155,22 @@ class BenchmarkSocketHTTPClient
   end
 
   private
-    def request(path, cookie)
+    def request(method, path, cookie = nil, body = nil, content_type = nil, accept = nil)
       socket = TCPSocket.new(@base.host, @base.port)
-      socket.write("GET #{path} HTTP/1.1\r\nHost: #{@base.host}\r\nConnection: close\r\nCookie: #{cookie}\r\n\r\n")
+      headers = [ "#{method} #{path} HTTP/1.1", "Host: #{@base.host}", "Connection: close" ]
+      headers << "Cookie: #{cookie}" if cookie
+      headers << "Accept: #{accept}" if accept
+      if body
+        headers << "Content-Type: #{content_type || 'application/x-www-form-urlencoded'}"
+        headers << "Content-Length: #{body.bytesize}"
+      end
+      socket.write((headers + [ "", body.to_s, "" ]).join("\r\n"))
       response = socket.read
       head, body = response.split("\r\n\r\n", 2)
-      { code: head.split(" ", 3)[1], body: body.to_s }
+      lines = head.to_s.split("\r\n")
+      cookies = lines.select { |line| line.downcase.start_with?("set-cookie:") }
+        .map { |line| line.split(":", 2).last.split(";", 2).first.strip }
+      { status: lines.first.to_s.split(" ", 3)[1], body: body.to_s, cookies: cookies }
     ensure
       socket&.close
     end

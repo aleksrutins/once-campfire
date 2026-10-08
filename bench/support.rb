@@ -7,8 +7,10 @@ module BenchmarkSupport
   ROOT = File.expand_path("..", __dir__)
   WORK = File.join(ROOT, "tmp/rails-optimization")
 
-  def parse_options(description, defaults, require_seed: true)
-    options = { baseline: nil, seed: nil, image: "campfire-reference:app", cpus: "8-11", rounds: 2 }.merge(defaults)
+  def parse_options(description, defaults = {}, require_seed: true, include_baseline: true, **keyword_defaults)
+    defaults = defaults.merge(keyword_defaults)
+    options = { seed: nil, image: "campfire-reference:app", cpus: "8-11", rounds: 2 }.merge(defaults)
+    options[:baseline] = nil if include_baseline
     parser = OptionParser.new do |parser|
       required = require_seed ? " --baseline PATH --seed PATH" : ""
       parser.banner = "Usage: ruby #{$PROGRAM_NAME}#{required} [options]\n#{description}"
